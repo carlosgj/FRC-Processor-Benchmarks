@@ -131,7 +131,7 @@ int             Int_Glob;
          }
       }
  
-   if ((Ap = fopen("Dhry.txt","a+")) == NULL)
+   if ((Ap = fopen(respath "/" "dhry.txt","a+")) == NULL)
      {
         printf(" Can not open Dhry.txt\n\n");
         printf(" Press Enter\n\n");

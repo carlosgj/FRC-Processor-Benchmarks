@@ -2,73 +2,6 @@
  * Compile on Raspberry Pi 64 bit
  *
  * 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 gcc-6  linpack.c cpuidc.c -lm -lrt -O3 -march=armv8-a  -o linpackPi64 
  *  #define options  "armv8 64Bit"
  *************************************************************************
@@ -192,7 +125,7 @@ main (int argc, char *argv[])
          
         getDetails();
 
-        outfile = fopen("Linpack.txt","a+");
+        outfile = fopen(respath "/" "Linpack.txt","a+");
         if (outfile == NULL)
         {
             printf (" Cannot open results file \n\n");
