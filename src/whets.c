@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
     printf("##########################################\n"); 
     printf("%s Precision C Whetstone Benchmark %s, %s\n", Precision, opt, timeday);
 
-    outfile = fopen(respath "/" "whets.txt","a+");
+    outfile = fopen(RESULT_PATH, "a+");
     if (outfile == NULL)
       {
        printf ("Cannot open results file \n\n");

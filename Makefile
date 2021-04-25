@@ -1,50 +1,44 @@
 CC=gcc
 INCLUDE_PATH=include
-BUILD_PATH=build
 SRC_PATH=src
 BIN_PATH=bin
 RESULTS_PATH=results
 DEPS=include
-CFLAGS=-Wall -lm
+CFLAGS= -lm -lrt -lpthread -O3 -mfloat-abi=hard
 
-all: whet dhry linpack
+all: whetmp dhrymp linpack linpack-neon
 
-whet: $(BUILD_PATH)/whets.o $(BUILD_PATH)/cpuidc.o
-	$(CC) -o $(BIN_PATH)/whet $(BUILD_PATH)/whets.o $(BUILD_PATH)/cpuidc.o $(CFLAGS)
+whet: dirs $(SRC_PATH)/whets.c $(SRC_PATH)/cpuidc.c
+	$(CC) -o $(BIN_PATH)/whet $(SRC_PATH)/whets.c $(SRC_PATH)/cpuidc.c -I $(INCLUDE_PATH) -DRESULT_PATH=\"$(RESULTS_PATH)/whet.txt\" $(CFLAGS) -mfpu=vfp
 
-dhry: $(BUILD_PATH)/dhry_1.o $(BUILD_PATH)/dhry_2.o $(BUILD_PATH)/cpuidc.o
-	$(CC) -o $(BIN_PATH)/dhry $(BUILD_PATH)/dhry_2.o $(BUILD_PATH)/dhry_1.o $(BUILD_PATH)/cpuidc.o $(CFLAGS)
+whetmp: dirs $(SRC_PATH)/mpwhets.c $(SRC_PATH)/cpuidc.c
+	$(CC) -o $(BIN_PATH)/whetmp $(SRC_PATH)/mpwhets.c $(SRC_PATH)/cpuidc.c -I $(INCLUDE_PATH) -DRESULT_PATH=\"$(RESULTS_PATH)/whet-mp.txt\" $(CFLAGS) -mfpu=vfp
 
-linpack: $(BUILD_PATH)/linpack.o $(BUILD_PATH)/cpuidc.o
-	$(CC) -o $(BIN_PATH)/linpack $(BUILD_PATH)/linpack.o $(BUILD_PATH)/cpuidc.o $(CFLAGS)
+dhry: dirs $(SRC_PATH)/dhry_1.c $(SRC_PATH)/dhry_2.c $(SRC_PATH)/cpuidc.c
+	$(CC) -o $(BIN_PATH)/dhry $(SRC_PATH)/dhry_2.c $(SRC_PATH)/dhry_1.c $(SRC_PATH)/cpuidc.c -I $(INCLUDE_PATH) -DRESULT_PATH=\"$(RESULTS_PATH)/dhry.txt\" $(CFLAGS) -mfpu=vfp
 
-#whet.o: dirs cpuidc.o
-#	$(CC) -Drespath=\"$(RESULTS_PATH)\" -I $(INCLUDE_PATH) -c $(SRC_PATH)/whets.c -o $(BUILD_PATH)/whet.o $(CFLAGS)
+dhrymp: dirs $(SRC_PATH)/mpdhry.c $(SRC_PATH)/cpuidc.c $(SRC_PATH)/dhry22.c
+	$(CC) -o $(BIN_PATH)/dhrymp $(SRC_PATH)/mpdhry.c $(SRC_PATH)/cpuidc.c $(SRC_PATH)/dhry22.c -I $(INCLUDE_PATH) -DRESULT_PATH=\"$(RESULTS_PATH)/dhry-mp.txt\" $(CFLAGS) -mfpu=vfp
 
-#whet.o: dirs cpuidc.o
-#        $(CC) -Drespath=\"$(RESULTS_PATH)\" -I $(INCLUDE_PATH) -c $(SRC_PATH)/whets.c -o $(BUILD_PATH)/whet.o $(CFLAGS)
+linpack: dirs $(SRC_PATH)/linpack.c $(SRC_PATH)/cpuidc.c
+	$(CC) -o $(BIN_PATH)/linpack $(SRC_PATH)/linpack.c $(SRC_PATH)/cpuidc.c -I $(INCLUDE_PATH) -DRESULT_PATH=\"$(RESULTS_PATH)/linpack.txt\" $(CFLAGS) -mfpu=vfp
 
-#%.o: $(SRC_PATH)/%.c
-#	$(CC) -c -o $@ $< $(CFLAGS)
+linpack-neon: dirs $(SRC_PATH)/linpackneon.c $(SRC_PATH)/cpuidc.c
+	$(CC) -o $(BIN_PATH)/linpack-neon $(SRC_PATH)/linpackneon.c $(SRC_PATH)/cpuidc.c -I $(INCLUDE_PATH) -DRESULT_PATH=\"$(RESULTS_PATH)/linpack-neon.txt\" $(CFLAGS) -mfpu=neon -funsafe-math-optimizations
 
 cpuidc.o: dirs
-	$(CC) -I $(INCLUDE_PATH) -c $(SRC_PATH)/cpuidc.c -o $(BUILD_PATH)/cpuidc.o $(CFLAGS)
+	$(CC) -I $(INCLUDE_PATH) -c $(SRC_PATH)/cpuidc.c -o $(SRC_PATH)/cpuidc.o $(CFLAGS)
 
 run:
-	bin/whet N
-	bin/dhry N
+	bin/whetmp N
+	bin/dhrymp N
 	bin/linpack N
+	bin/linpack-neon N
 
 dirs:
-	mkdir -p $(BUILD_PATH)
 	mkdir -p $(BIN_PATH)
 	mkdir -p $(RESULTS_PATH)
 
 clean:
-	rm -rf $(BUILD_PATH)
 	rm -rf $(BIN_PATH)
 	rm -rf $(RESULTS_PATH)
-
-$(BUILD_PATH)/%.o: $(SRC_PATH)/%.c dirs
-	$(CC) -Drespath=\"$(RESULTS_PATH)\" -I $(INCLUDE_PATH) -c $< -o $@ $(CFLAGS)
-

@@ -1,49 +1,16 @@
 /*
+ gcc  linpackmp.c cpuidc.c -lm -lrt -O3 -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4 -lpthread -o linpackNeonMP
 
- gcc  linpackneon.c cpuidc.c -lm -lrt -O3 -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4 -o linpackPiNEONi 
  #define options   " Using NEON Intrinsics"
 
- daxpy NEON Assembly Code
+*/ 
+ 
 
-     .L49:
-        vld1.32 {d18-d19}, [r1]!
-        vld1.32 {d16-d17}, [r2]
-        add     r3, r3, #4
-        cmp     r0, r3
-        vmla.f32        q8, q9, q10
-        vst1.32 {d16-d17}, [r2]!
-        bgt     .L49
-
- *************************************************************************
- *
- *          Linpack 100x100 Benchmark In C/C++ For PCs
- *     
- *  Different compilers can produce different floating point numeric
- *  results, probably due to compiling instructions in a different
- *  sequence. As the program checks these, they may need to be changed.
- *  The log file indicates non-standard results and these values can
- *  be copied and pasted into this program. See // COMPILER near
- *  start of main() and earlier #define codes.
- *
- *  Different compilers do not optimise the code in the same way.
- *  This can lead to wide variations in benchmark speeds. See results
- *  with MS6 compiler ID and compare with those from same CPUs from
- *  the Watcom compiler generated code.
- *
- ***************************************************************************
-*/
-
-// COMPILER for numeric results
-
-// #define WATCOM
-// #define VISUALC
-// #define GCCINTEL64
-// #define GCCINTEL32
-// #define GCCARMDP
-#define GCCARMSP
+// #define UNROLL
 #define NEON
 #define SP
-// #define UNROLL
+#define options   "Using NEON Intrinsics"
+
 
 #ifdef SP
 #define REAL float
@@ -60,27 +27,34 @@
 #endif
 
 
- // VERSION
-               
- #ifdef CNNT
-    #define options   "Non-optimised"
-    #define opt "0"
- #else
-//    #define options   "Optimised"
-//    #define options   "Opt 3 32 Bit"
-   #define options   " Using NEON Intrinsics"
-    #define opt "1"
- #endif
-
-#define NTIMES 10
-
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <time.h>
 #include "cpuidh.h"
+#include <pthread.h> 
 #include <arm_neon.h>
 
-void print_time (int row);
+
+
+  double  runSecs = 0.25;
+  double  secs;
+
+  pthread_t tid[100]; 
+  pthread_attr_t * attrt = NULL; 
+  pthread_mutex_t mutext = PTHREAD_MUTEX_INITIALIZER;
+
+  int    nValue;
+  int    nkp1;
+  int    nk;
+  int    nl;
+  int    nlda;
+  int    threads;
+  REAL   *na;
+  REAL   t1[1000];
+   
+
+
 void matgen (REAL a[], int lda, int n, REAL b[], REAL *norma);
 void dgefa (REAL a[], int lda, int n, int ipvt[], int *info);
 void dgesl (REAL a[],int lda,int n,int ipvt[],REAL b[],int job);
@@ -91,463 +65,335 @@ int idamax (int n, REAL dx[], int incx);
 void dscal (int n, REAL da, REAL dx[], int incx);
 REAL ddot (int n, REAL dx[], int incx, REAL dy[], int incy);
 
-static REAL atime[9][15];
-double runSecs = 1;
 
 
-main (int argc, char *argv[])
+void *daxit (void *arg)
 {
-        static REAL aa[200*200],a[200*201],b[200],x[200];       
-        REAL cray,ops,total,norma,normx;
-        REAL resid,residn,eps,tm2,epsn,x1,x2;
-        REAL mflops;
-        static int ipvt[200],n,i,j,ntimes,info,lda,ldaa;
-        int endit, pass, loop;
-        REAL overhead1, overhead2, time2;
-        REAL max1, max2;
-        char was[5][20];
-        char expect[5][20];
-        char title[5][20];
-        int errors;
-        int         nopause = 1;
-        
-        FILE    *outfile;
- 
-        if (argc > 1)
-         {
-           switch (argv[1][0])
-            {
-                case 'N':
-                   nopause = 0;
-                   break;
-                case 'n':
-                   nopause = 0;
-                   break;
-            }
-         }
-        printf("\n");
-         
-        getDetails();
+    long thread;
+    int  n, k, lda, l, kp1, j;
+    int l21 = 0;
+    int l22 = 0;
+    int l41 = 0;
+    int l42 = 0;
+    int l43 = 0;
+    int l44 = 0;
+   
+    int  start, len;
+    REAL t;
+    REAL *a;
+    
+    thread = (long)arg;
+    n = nValue;
+    k = nk;
+    lda = nlda;
+    a = (REAL *)na;
+    l = nl;
+    kp1 = nkp1;
+    start = 0;
+    len = n-(k+1);
 
-        outfile = fopen(RESULT_PATH, "a+");
-        if (outfile == NULL)
+    if (len < 64) threads = 1;
+    
+    l21 = len / 2;
+    l22 = len - l21;
+    l41 = l21 / 2;
+    l42 = l21 - l41;
+    l43 = l22 / 2;
+    l44 = l22 - l43;
+
+    if (threads == 2)
+    {
+       if (thread == 1)
         {
-            printf (" Cannot open results file \n\n");
-            printf(" Press Enter\n\n");
-            int g = getchar();
-            exit (0);
+            len =  l21;
+            start = 0;
         }
+        if (thread == 2)
+        {
+            len = l22;
+            start = l21;
+        }
+    }
+    if (threads == 4)
+    {
+        if (thread == 1)
+        {
+            len =  l41;
+            start = 0;
+        }
+        if (thread == 2)
+        {
+            len = l42;
+            start = l41;
+        }
+        if (thread == 3)
+        {
+            len = l43;
+            start = l41+l42;
+        }
+        if (thread == 4)
+        {
+            len = l44;
+            start = l41+l42+l43;
+        }
+    }
+
+    for (j = kp1; j < n; j++)
+    {
+        t = t1[j];
+        daxpy(len,t,&a[lda*k+k+start+1],1, &a[lda*j+k+start+1],1);
+    }
+    return;
+}
+
+
+
+
+int main()
+{
+    static REAL a[1000*1001],b[1000],x[1000];   
+    REAL cray,ops,total,norma,normx, overhead;
+    REAL resid,residn,eps;
+    REAL mflops[12];
+    REAL resids[12];
+    REAL resid2[12];
+    REAL xstart[12];
+    REAL xlast1[12];
+    REAL epsval[12];
+    REAL check[5];
+
+    int passes[12];
+    
+    static int ipvt[1000],n,i,j,ntimes,info,lda,ldaa,t, nv, nc;
+    int     pass;
+    char resultchars[1000];
+    char check100[30];    
+    char check500[30];    
+    char check1000[30];    
+    int maxThreads;
+
+    FILE    *outfile;
+
+    REAL nn;
+
+    sprintf (check100, "Same Results");
+    sprintf (check500, "Same Results");
+    sprintf (check1000, "Same Results");
+
+    maxThreads = 4;
+     
+    cray = .056; 
+
+    printf("\n");
+     
+    getDetails();
+    local_time();
+
+    outfile = fopen("LinpackMP.txt","a+");
+    if (outfile == NULL)
+    {
+       
+ printf (" Cannot open results file \n\n");
+        printf(" Press Enter\n\n");
+        int g = getchar();
+        exit (0);
+    }
                      
-       #ifdef WATCOM
-        sprintf(expect[0], "             0.4");
-        sprintf(expect[1], " 7.41628980e-014");
-        sprintf(expect[2], " 1.00000000e-015");
-        sprintf(expect[3], "-1.49880108e-014");
-        sprintf(expect[4], "-1.89848137e-014");
-       #endif
+    fprintf (outfile, " ########################################################\n\n");                     
+    fprintf (outfile, " Linpack %s Precision MultiThreaded Benchmark\n", PREC);
+    fprintf (outfile, " %s, %s\n", options, timeday);
+    fprintf (outfile, "   MFLOPS 0 to 4 Threads, N 100, 500, 1000\n\n");
+    fprintf (outfile, " Threads      None        1        2        4\n\n");
+
+    printf (" ########################################################\n\n");                     
+    printf (" Linpack %s Precision MultiThreaded  Benchmark\n", PREC);
+    printf (" %s, %s\n", options, timeday);
+    printf ("   MFLOPS 0 to 4 Threads, N 100, 500, 1000\n\n");
+    printf (" Threads      None        1        2        4\n\n");
+
+    for (i=0; i<12; i++)
+    {
+        mflops[i] = 0;
+        resids[i] = 0; 
+        resid2[i] = 0;
+        xstart[i] = 0; 
+        xlast1[i] = 0; 
+    }
     
-       #ifdef VISUALC
-        sprintf(expect[0], "             1.7");
-        sprintf(expect[1], " 7.41628980e-014");
-        sprintf(expect[2], " 2.22044605e-016");
-        sprintf(expect[3], "-1.49880108e-014");
-        sprintf(expect[4], "-1.89848137e-014");
-       #endif
-    
-    
-       #ifdef GCCINTEL32 
-        sprintf(expect[0], "             1.9");
-        sprintf(expect[1], "  8.39915160e-14");
-        sprintf(expect[2], "  2.22044605e-16");
-        sprintf(expect[3], " -6.22835117e-14");
-        sprintf(expect[4], " -4.16333634e-14");
-       #endif
-    
-    
-       #ifdef GCCINTEL64
-        sprintf(expect[0], "             1.7");
-        sprintf(expect[1], "  7.41628980e-14");
-        sprintf(expect[2], "  2.22044605e-16");
-        sprintf(expect[3], " -1.49880108e-14");
-        sprintf(expect[4], " -1.89848137e-14");
-       #endif
+    nc = -1;
+   
+    for (nv=0; nv<3; nv++)
+    {
+        if (nv == 0) n = 100;
+        if (nv == 1) n = 500;
+        if (nv == 2) n = 1000;
 
-       #ifdef GCCARMDP
-        sprintf(expect[0], "             1.7");
-        sprintf(expect[1], "  7.41628980e-14");
-        sprintf(expect[2], "  2.22044605e-16");
-        sprintf(expect[3], " -1.49880108e-14");
-        sprintf(expect[4], " -1.89848137e-14");
-       #endif
-    
-        #ifdef GCCARMSP
-        sprintf(expect[0], "             1.6");
-        sprintf(expect[1], "  3.80277634e-05");
-        sprintf(expect[2], "  1.19209290e-07");
-        sprintf(expect[3], " -1.38282776e-05");
-        sprintf(expect[4], " -7.51018524e-06");
-       #endif
+        printf(" N %4d   ", n);
+        fprintf(outfile, " N %4d   ", n);
+        fflush(stdout);
 
-       lda = 201;
-        ldaa = 200;
-        cray = .056; 
-        n = 100;
-        fprintf(stdout, "##########################################\n"); 
-        fprintf(stdout, "%s ", PREC);
-        fprintf(stdout,"Precision Linpack Benchmark - Linux Version in 'C/C++'\n\n");
+        ntimes = 1;
+        lda = n;
+        nn = (REAL)n;
+        ops = (2.0e0*(nn*nn*nn))/3.0 + 2.0*(nn*nn);
 
-        fprintf(stdout,"%s\n\n",options);
-
-        ops = (2.0e0*(n*n*n))/3.0 + 2.0*(n*n);
-
-        matgen(a,lda,n,b,&norma);
-        start_time();
-        dgefa(a,lda,n,ipvt,&info);
-        end_time();
-        atime[0][0] = secs;
-        start_time();
-        dgesl(a,lda,n,ipvt,b,0);
-        end_time();
-        atime[1][0] = secs;
-        total = atime[0][0] + atime[1][0];
-
-/*     compute a residual to verify results.  */ 
-
-        for (i = 0; i < n; i++) {
-                x[i] = b[i];
-        }
-        matgen(a,lda,n,b,&norma);
-        for (i = 0; i < n; i++) {
-                b[i] = -b[i];
-        }
-        dmxpy(n,b,n,lda,x,a);
-        resid = 0.0;
-        normx = 0.0;
-        for (i = 0; i < n; i++) {
-                resid = (resid > fabs((double)b[i])) 
-                        ? resid : fabs((double)b[i]);
-                normx = (normx > fabs((double)x[i])) 
-                        ? normx : fabs((double)x[i]);
-        }
-        eps = epslon(ONE);
-        residn = resid/( n*norma*normx*eps );
-        epsn = eps;
-        x1 = x[0] - 1;
-        x2 = x[n-1] - 1;
-        
-        printf("norm resid      resid           machep");
-        printf("         x[0]-1          x[n-1]-1\n");
-        printf("%6.1f %17.8e%17.8e%17.8e%17.8e\n\n",
-               (double)residn, (double)resid, (double)epsn, 
-               (double)x1, (double)x2);
-
-        fprintf(stderr,"Times are reported for matrices of order        %5d\n",n);
-        fprintf(stderr,"1 pass times for array with leading dimension of%5d\n\n",lda);
-        fprintf(stderr,"      dgefa      dgesl      total     Mflops       unit");
-        fprintf(stderr,"      ratio\n");
-
-        atime[2][0] = total;
-        if (total > 0.0)
+        for (t=0; t<maxThreads; t++)
         {
-            atime[3][0] = ops/(1.0e6*total);
-            atime[4][0] = 2.0/atime[3][0];
-        }
-        else
-        {
-            atime[3][0] = 0.0;
-            atime[4][0] = 0.0;
-        }
-        atime[5][0] = total/cray;
-       
-        print_time(0);
+            nc = nc + 1;
+            threads = t;
+            if (t == 3) threads = 4;
 
-/************************************************************************
- *       Calculate overhead of executing matgen procedure              *
- ************************************************************************/
-       
-        fprintf (stderr,"\nCalculating matgen overhead\n");
-        pass = -20;
-        loop = NTIMES;
-        do
-        {
+//          Calibrate
+
+            pass = -20;
+            do
+            {
+                pass = pass + 1;        
+                start_time();      
+                for (j=0; j<ntimes; j++)
+                {
+                    matgen(a,lda,n,b,&norma);
+                    dgefa(a,lda,n,ipvt,&info);
+                    dgesl(a,lda,n,ipvt,b,0);
+                }
+                end_time();
+                if (secs > runSecs)
+                {
+                    pass = 0;
+                }
+                if (pass < 0)
+                {
+                    if (secs < runSecs/10)
+                    {
+                        ntimes = ntimes * 10;
+                    }
+                    else
+                    {
+                        ntimes = ntimes * 2;
+                    }
+                }
+            }
+            while (pass < 0);
+
+//          Calculate matgen overheads
+
             start_time();
-            pass = pass + 1;        
-            for ( i = 0 ; i < loop ; i++)
+            for (j=0; j<ntimes; j++)
             {
                  matgen(a,lda,n,b,&norma);
             }
             end_time();
-            overhead1 = secs;
-            fprintf (stderr,"%10d times %6.2f seconds\n", loop, overhead1);
-            if (overhead1 > runSecs)
-            {
-                pass = 0;
-            }
-            if (pass < 0)
-            {
-                if (overhead1 < 0.1)
-                {
-                    loop = loop * 10;
-                }
-                else
-                {
-                    loop = loop * 2;
-                }
-            }
-        }
-        while (pass < 0);
-        
-        overhead1 = overhead1 / (double)loop;
-
-        fprintf (stderr,"Overhead for 1 matgen %12.5f seconds\n\n", overhead1);
-
-/************************************************************************
- *           Calculate matgen/dgefa passes for runSecs seconds                *
- ************************************************************************/
-       
-        fprintf (stderr,"Calculating matgen/dgefa passes for %d seconds\n", (int)runSecs);
-        pass = -20;
-        ntimes = NTIMES;
-        do
-        {
-            start_time();
-            pass = pass + 1;        
-            for ( i = 0 ; i < ntimes ; i++)
+            overhead = secs;
+            
+            start_time();      
+            for (j=0; j<ntimes; j++)
             {
                 matgen(a,lda,n,b,&norma);
-                dgefa(a,lda,n,ipvt,&info );
-            }
-            end_time();
-            time2 = secs;
-            fprintf (stderr,"%10d times %6.2f seconds\n", ntimes, time2);
-            if (time2 > runSecs)
-            {
-                pass = 0;
-            }
-            if (pass < 0)
-            {
-                if (time2 < 0.1)
-                {
-                    ntimes = ntimes * 10;
-                }
-                else
-                {
-                    ntimes = ntimes * 2;
-                }
-            }
-        }
-        while (pass < 0);
-        
-        ntimes =  (int)(runSecs * (double)ntimes / time2);
-        if (ntimes == 0) ntimes = 1;
-
-        fprintf (stderr,"Passes used %10d \n\n", ntimes);
-        fprintf(stderr,"Times for array with leading dimension of%4d\n\n",lda);
-        fprintf(stderr,"      dgefa      dgesl      total     Mflops       unit");
-        fprintf(stderr,"      ratio\n");        
-
-/************************************************************************
- *                              Execute 5 passes                        *
- ************************************************************************/
-      
-        tm2 = ntimes * overhead1;
-        atime[3][6] = 0;
-
-        for (j=1 ; j<6 ; j++)
-        {
-            start_time();
-            for (i = 0; i < ntimes; i++)
-            {
-                matgen(a,lda,n,b,&norma);
-                dgefa(a,lda,n,ipvt,&info );
-            }
-            end_time();
-            atime[0][j] = (secs - tm2)/ntimes;
-
-            start_time();              
-            for (i = 0; i < ntimes; i++)
-            {
+                dgefa(a,lda,n,ipvt,&info);
                 dgesl(a,lda,n,ipvt,b,0);
             }
             end_time();
-
-            atime[1][j] = secs/ntimes;
-            total       = atime[0][j] + atime[1][j];
-            atime[2][j] = total;
-            atime[3][j] = ops/(1.0e6*total);
-            atime[4][j] = 2.0/atime[3][j];
-            atime[5][j] = total/cray;
-            atime[3][6] = atime[3][6] + atime[3][j];
-            
-            print_time(j);
-        }
-        atime[3][6] = atime[3][6] / 5.0;
-        fprintf (stderr,"Average                          %11.2f\n",
-                                               (double)atime[3][6]);        
+            total = secs - overhead;
+            mflops[nc] = ops * (REAL)ntimes / (1.0e6*total);
+            passes[t] = ntimes;
         
-        fprintf (stderr,"\nCalculating matgen2 overhead\n");
-
-/************************************************************************
- *             Calculate overhead of executing matgen procedure         *
- ************************************************************************/
-
-        start_time();        
-        for ( i = 0 ; i < loop ; i++)
-        {
-            matgen(aa,ldaa,n,b,&norma);    
-        }
-        end_time();
-        overhead2 = secs;
-        overhead2 = overhead2 / (double)loop;
+        //     compute a residual to verify results. 
         
-        fprintf (stderr,"Overhead for 1 matgen %12.5f seconds\n\n", overhead2);
-        fprintf(stderr,"Times for array with leading dimension of%4d\n\n",ldaa);
-        fprintf(stderr,"      dgefa      dgesl      total     Mflops       unit");
-        fprintf(stderr,"      ratio\n");
+                for (i = 0; i < n; i++)
+                {
+                        x[i] = b[i];
+                }
+                matgen(a,lda,n,b,&norma);
+                for (i = 0; i < n; i++)
+                {
+                        b[i] = -b[i];
+                }
+                dmxpy(n,b,n,lda,x,a);
+                resid = 0.0;
+                normx = 0.0;
+                for (i = 0; i < n; i++)
+                {
+                        resid = (resid > fabs((double)b[i])) 
+                                ? resid : fabs((double)b[i]);
+                        normx = (normx > fabs((double)x[i])) 
+                                ? normx : fabs((double)x[i]);
+                }
+                eps = epslon(ONE);
+                residn = resid/( n*norma*normx*eps );
+                resids[nc] = residn;
+                resid2[nc] = resid;
+                epsval[nc] = eps;
+                xstart[nc] = x[0] - 1;
+                xlast1[nc] = x[n-1] - 1;               
 
-/************************************************************************
- *                              Execute 5 passes                        *
- ************************************************************************/
-              
-        tm2 = ntimes * overhead2;
-        atime[3][12] = 0;
-
-        for (j=7 ; j<12 ; j++)
-        {
-            start_time();
-            for (i = 0; i < ntimes; i++)
-            {
-                matgen(aa,ldaa,n,b,&norma);
-                dgefa(aa,ldaa,n,ipvt,&info  );
-            }
-            end_time();
-            atime[0][j] = (secs - tm2)/ntimes;
-            
-            start_time();      
-            for (i = 0; i < ntimes; i++)
-            {
-                dgesl(aa,ldaa,n,ipvt,b,0);
-            }
-            end_time();
-            atime[1][j] = secs/ntimes;
-            total       = atime[0][j] + atime[1][j];
-            atime[2][j] = total;
-            atime[3][j] = ops/(1.0e6*total);
-            atime[4][j] = 2.0/atime[3][j];
-            atime[5][j] = total/cray;
-            atime[3][12] = atime[3][12] + atime[3][j];
-
-            print_time(j);
+                int error;
+                if (t == 0)
+                {
+                    error = 0;
+                    check[0] = residn;
+                    check[1] = resid;
+                    check[2] = eps;
+                    check[3] = x[0] - 1;
+                    check[4] = x[n-1] - 1;
+                }
+                else
+                {
+                    if (check[0] != residn)   error = 1;
+                    if (check[1] != resid)    error = 1;
+                    if (check[2] != eps)      error = 1;
+                    if (check[3] != x[0]-1)   error = 1;
+                    if (check[4] != x[n-1]-1) error = 1;
+                    if (error == 1)
+                    {
+                        if (nv == 0) sprintf (check100,  "Errors Found");
+                        if (nv == 1) sprintf (check500,  "Errors Found");
+                        if (nv == 2) sprintf (check1000, "Errors Found");
+                    }
+                }
+                printf("%8.2f ", mflops[nc]);
+                fprintf(outfile, "%8.2f ", mflops[nc]);
+                fflush(stdout);
         }
-        atime[3][12] = atime[3][12] / 5.0; 
-        fprintf (stderr,"Average                          %11.2f\n\n",
-                                              (double)atime[3][12]);  
-        printf("##########################################\n"); 
-
-/************************************************************************
- *           Use minimum average as overall Mflops rating               *
- ************************************************************************/
-      
-        mflops = atime[3][6];
-        if (atime[3][12] < mflops) mflops = atime[3][12];
+        printf("\n");
+        fprintf(outfile, "\n");
+    }
+    sprintf(resultchars,
+                     "\n NR=norm resid RE=resid MA=machep X0=x[0]-1 XN=x[n-1]-1\n\n"
+                     " N              100             500            1000\n\n"
+                     " NR %15.2f %15.2f %15.2f\n"
+                     " RE %15.8e %15.8e %15.8e\n"
+                     " MA %15.8e %15.8e %15.8e\n"
+                     " X0 %15.8e %15.8e %15.8e\n"
+                     " XN %15.8e %15.8e %15.8e\n\n"
+                     "Thread\n"
+                     " 0 - 4 %s    %s    %s\n",
+                      resids[0], resids[4], resids[8],                         
+                      resid2[0], resid2[4], resid2[8],
+                      epsval[0], epsval[4], epsval[8],
+                      xstart[0], xstart[4], xstart[8],
+                      xlast1[0], xlast1[4], xlast1[8],
+                      check100, check500, check1000);
        
-        fprintf(stderr,"\n");
-        fprintf(stderr, "%s ", PREC);
-        fprintf(stderr," Precision %11.2f Mflops \n\n",mflops);
+    printf ("%s", resultchars);
+    fprintf (outfile, "%s", resultchars);
 
-        local_time();
-
-
-/************************************************************************
- *              Add results to output file Linpack.txt                  *
- ************************************************************************/
-    fprintf (outfile, " ########################################################\n\n");                     
-    fprintf (outfile, " Linpack %s Precision Benchmark n @ 100\n", PREC);
-    fprintf (outfile, " %s, %s\n", options, timeday);
-
-    max1 = 0;
-    for (i=1 ; i<6 ; i++)
-    {
-        if (atime[3][i] > max1) max1 = atime[3][i];                 
-    }
-
-    max2 = 0;
-    for (i=7 ; i<12 ; i++)
-    {                 
-        if (atime[3][i] > max2) max2 = atime[3][i];                 
-    }
-    if (max1 < max2) max2 = max1;
-   
-    fprintf(outfile, " Speed %10.2f MFLOPS\n\n", max2);
-    sprintf(was[0], "%16.1f",(double)residn);
-    sprintf(was[1], "%16.8e",(double)resid);
-    sprintf(was[2], "%16.8e",(double)epsn);
-    sprintf(was[3], "%16.8e",(double)x1);
-    sprintf(was[4], "%16.8e",(double)x2);
-
-    sprintf(title[0], "norm. resid");
-    sprintf(title[1], "resid      ");
-    sprintf(title[2], "machep     ");
-    sprintf(title[3], "x[0]-1     ");
-    sprintf(title[4], "x[n-1]-1   ");
-
-    if (strtol(opt, NULL, 10) == 0)
-    {
-        sprintf(expect[2], " 8.88178420e-016");
-    }
-    errors = 0;
-
-    for (i=0; i<5; i++)
-    {
-        if (strcmp (expect[i], was[i])  != 0)
-        {
-            fprintf(outfile, " Variable %s Non-standard result was %s instead of %s\n",
-                               title[i], was[i], expect[i]);  
-            errors = errors + 1;
-        }
-    }
-    if (errors == 0)
-    {
-        fprintf(outfile, " Numeric results were as expected\n\n");
-    }
-    else
-    {
-         printf(" Different numeric results - see linpack.txt\n\n");
-         fprintf(outfile, "\n Compiler #define or values in linpack.c might need to be changed\n\n");
-
-    }
-
-
-    fprintf (outfile, " ########################################################\n\n");  
     fprintf(outfile, "\n");
     fprintf (outfile, "SYSTEM INFORMATION\n\nFrom File /proc/cpuinfo\n");
+
     fprintf (outfile, "%s \n", configdata[0]);
     fprintf (outfile, "\nFrom File /proc/version\n");
     fprintf (outfile, "%s \n", configdata[1]);
     fprintf (outfile, "\n");
+
     fflush(outfile);
     
     printf ("\n");
-
-    if (nopause)
-    {
-         char moredata[1024];
-         printf("Type additional information to include in linpack.txt - Press Enter\n");
-         if (fgets (moredata, sizeof(moredata), stdin) != NULL)
-         fprintf (outfile, "Additional information - %s\n", moredata);
-    }
     fclose (outfile);
+
+    return 1;
+
 }
      
-/*----------------------*/ 
-void print_time (int row)
-
-{
-fprintf(stderr,"%11.5f%11.5f%11.5f%11.2f%11.4f%11.4f\n",   (double)atime[0][row],
-       (double)atime[1][row], (double)atime[2][row], (double)atime[3][row], 
-       (double)atime[4][row], (double)atime[5][row]);
-       return;
-}
       
 /*----------------------*/ 
 
@@ -640,59 +486,87 @@ function, references to a[i][j] are written a[lda*i+j].  */
 
 REAL t;
 int j,k,kp1,l,nm1;
-
+long thrd;
 
 /*     gaussian elimination with partial pivoting       */
 
-        *info = 0;
-        nm1 = n - 1;
-        if (nm1 >=  0) {
-                for (k = 0; k < nm1; k++) {
-                        kp1 = k + 1;
+    *info = 0;
+    nm1 = n - 1;
+    if (nm1 >=  0)
+    {
+        for (k = 0; k < nm1; k++)
+        {
+            kp1 = k + 1;
 
-                        /* find l = pivot index */
+            /* find l = pivot index */
 
-                        l = idamax(n-k,&a[lda*k+k],1) + k;
-                        ipvt[k] = l;
+            l = idamax(n-k,&a[lda*k+k],1) + k;
+            ipvt[k] = l;
 
-                        /* zero pivot implies this column already 
-                           triangularized */
+            /* zero pivot implies this column already 
+               triangularized */
 
-                        if (a[lda*k+l] != ZERO) {
+            if (a[lda*k+l] != ZERO)
+            {
 
-                                /* interchange if necessary */
+                /* interchange if necessary */
 
-                                if (l != k) {
-                                        t = a[lda*k+l];
-                                        a[lda*k+l] = a[lda*k+k];
-                                        a[lda*k+k] = t; 
-                                }
+                if (l != k) {
+                        t = a[lda*k+l];
+                        a[lda*k+l] = a[lda*k+k];
+                        a[lda*k+k] = t; 
+                }
 
-                                /* compute multipliers */
+                /* compute multipliers */
 
-                                t = -ONE/a[lda*k+k];
-                                dscal(n-(k+1),t,&a[lda*k+k+1],1);
+                t = -ONE/a[lda*k+k];
+                dscal(n-(k+1),t,&a[lda*k+k+1],1);
 
-                                /* row elimination with column indexing */
+                /* row elimination with column indexing */
 
-                                for (j = kp1; j < n; j++) {
-                                        t = a[lda*j+l];
-                                        if (l != k) {
-                                                a[lda*j+l] = a[lda*j+k];
-                                                a[lda*j+k] = t;
-                                        }
-                                        daxpy(n-(k+1),t,&a[lda*k+k+1],1,
-                                              &a[lda*j+k+1],1);
-                                } 
-                        }
-                        else { 
-                                *info = k;
-                        }
-                } 
-        }
-        ipvt[n-1] = n-1;
-        if (a[lda*(n-1)+(n-1)] == ZERO) *info = n-1;
-        return;
+                nValue = n;
+                nk = k;
+                nlda = lda;
+                na = (REAL *)a;
+                nkp1 = kp1;
+                nl = l;
+
+                for (j = kp1; j < n; j++)
+                {
+                       t = a[lda*j+l];
+                       t1[j] = t;
+                       
+                       if (l != k)
+                       {
+                             a[lda*j+l] = a[lda*j+k];
+                             a[lda*j+k] = t;
+                       }
+                       if (threads == 0)
+                       {
+                           daxpy(n-(k+1),t,&a[lda*k+k+1],1, &a[lda*j+k+1],1);
+                       }
+                }
+                if (threads > 0)
+                {
+                    for (thrd=1; thrd<threads+1; thrd++)
+                    {
+                       pthread_create(&tid[thrd], attrt, daxit, (void *)thrd);
+                    }
+                    for (thrd=1; thrd<threads+1; thrd++)
+                    {
+                        pthread_join(tid[thrd], NULL);
+                    }
+                }
+            }
+            else
+            { 
+               *info = k;
+            }
+        } 
+    }
+    ipvt[n-1] = n-1;
+    if (a[lda*(n-1)+(n-1)] == ZERO) *info = n-1;
+    return;
 }
 
 /*----------------------*/ 
@@ -829,7 +703,6 @@ void daxpy(int n, REAL da, REAL dx[], int incx, REAL dy[], int incy)
 
 {
         int i,ix,iy,m,mp1;
-
         mp1 = 0;
         m = 0;
 
@@ -866,23 +739,24 @@ void daxpy(int n, REAL da, REAL dx[], int incx, REAL dy[], int incy)
 
 #endif
 
+
 #ifdef UNROLL
 
-    m = n % 4;
-    if ( m != 0)
-    {
-            for (i = 0; i < m; i++) 
-                    dy[i] = dy[i] + da*dx[i];
-                    
-            if (n < 4) return;
-    } 
-    for (i = m; i < n; i = i + 4)
-    {
-        dy[i] = dy[i] + da*dx[i];
-        dy[i+1] = dy[i+1] + da*dx[i+1];
-        dy[i+2] = dy[i+2] + da*dx[i+2];
-        dy[i+3] = dy[i+3] + da*dx[i+3];            
-    }
+        m = n % 4;
+        if ( m != 0)
+        {
+                for (i = 0; i < m; i++) 
+                        dy[i] = dy[i] + da*dx[i];
+                if (n < 4) return;
+        }
+  
+        for (i = m; i < n; i = i + 4)
+        {
+                dy[i]   = dy[i]   + da*dx[i];
+                dy[i+1] = dy[i+1] + da*dx[i+1];
+                dy[i+2] = dy[i+2] + da*dx[i+2];
+                dy[i+3] = dy[i+3] + da*dx[i+3];                
+        }
 
 #endif
 
@@ -911,6 +785,7 @@ void daxpy(int n, REAL da, REAL dx[], int incx, REAL dy[], int incy)
     ptrx1 = ptrx1 + m;
     ptry1 = ptry1 + m;
     c41 = vld1q_f32(ptrc1);
+
     for (i = m; i < n; i=i+4)
     {
         x41 = vld1q_f32(ptrx1);
@@ -924,10 +799,11 @@ void daxpy(int n, REAL da, REAL dx[], int incx, REAL dy[], int incy)
         ptry1 = ptry1 + 4;
     }
 
-    #endif
- 
-   return;
+#endif
+
+return;
 }
+
    
 /*----------------------*/ 
 
@@ -978,7 +854,7 @@ REAL ddot(int n, REAL dx[], int incx, REAL dy[], int incy)
 
 #endif
 
-#ifdef UNROLL
+#ifdef NEON
 
 
         m = n % 5;
@@ -996,7 +872,7 @@ REAL ddot(int n, REAL dx[], int incx, REAL dy[], int incy)
 
 #endif
 
-#ifdef NEON
+#ifdef UNROLL
 
 
         m = n % 5;
@@ -1089,6 +965,7 @@ void dscal(int n, REAL da, REAL dx[], int incx)
         }
 
 #endif
+
 
 }
 
