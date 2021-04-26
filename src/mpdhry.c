@@ -194,6 +194,7 @@ void main()
    double  DhryPerSec[5];
    int     threadc[5];
    char    errorMsg[100];
+   int     nprocs = get_nprocs();
 
     FILE    *outfile;
     
@@ -226,7 +227,7 @@ void main()
            threads = 1;
        }
        else{
-           threads = get_nprocs();
+           threads = nprocs;
        }
        printf("      %4d", threads);
        if (threads == 1)
@@ -292,14 +293,14 @@ void main()
    fflush(stdout);                
    fflush(outfile);                
 
-   fprintf(outfile, " Threads                %9d%9d%9d%9d\n"
-                    " Seconds                %9.2lf%9.2lf%9.2lf%9.2lf\n"
-                    " Dhrystones per Second  %9.0lf%9.0lf%9.0lf%9.0lf\n"
-                    " VAX MIPS rating        %9.0lf%9.0lf%9.0lf%9.0lf\n\n",
-                      threadc[1], threadc[2], threadc[3], threadc[4],
-                      User_Time[1], User_Time[2], User_Time[3], User_Time[4],
-                      DhryPerSec[1], DhryPerSec[2], DhryPerSec[3], DhryPerSec[4],
-                      Vax_Mips[1], Vax_Mips[2], Vax_Mips[3], Vax_Mips[4]); 
+   fprintf(outfile, " Threads                %9d%9d\n"
+                    " Seconds                %9.2lf%9.2lf\n"
+                    " Dhrystones per Second  %9.0lf%9.0lf\n"
+                    " VAX MIPS rating        %9.0lf%9.0lf\n\n",
+                      threadc[1], threadc[2],
+                      User_Time[1], User_Time[2],
+                      DhryPerSec[1], DhryPerSec[2],
+                      Vax_Mips[1], Vax_Mips[2]); 
    fprintf(outfile, "        %s\n\n", errorMsg);
 
    local_time();
