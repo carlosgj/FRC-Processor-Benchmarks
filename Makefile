@@ -16,9 +16,6 @@ endif
 
 
 all: whetmp dhrymp linpack
-ifeq ($(ARCH), arm-linux-gnueabihf)
-	make linpack-neon
-endif
 
 whet: dirs $(SRC_PATH)/whets.c $(SRC_PATH)/cpuidc.c
 	$(CC) -o $(BIN_PATH)/whet $(SRC_PATH)/whets.c $(SRC_PATH)/cpuidc.c -I $(INCLUDE_PATH) -DRESULT_PATH=\"$(RESULTS_PATH)/whet.txt\" $(CFLAGS)
@@ -35,16 +32,10 @@ dhrymp: dirs $(SRC_PATH)/mpdhry.c $(SRC_PATH)/cpuidc.c $(SRC_PATH)/dhry22.c
 linpack: dirs $(SRC_PATH)/linpack.c $(SRC_PATH)/cpuidc.c
 	$(CC) -o $(BIN_PATH)/linpack $(SRC_PATH)/linpack.c $(SRC_PATH)/cpuidc.c -I $(INCLUDE_PATH) -DRESULT_PATH=\"$(RESULTS_PATH)/linpack.txt\" $(CFLAGS)
 
-linpack-neon: dirs $(SRC_PATH)/linpackneon.c $(SRC_PATH)/cpuidc.c
-	$(CC) -o $(BIN_PATH)/linpack-neon $(SRC_PATH)/linpackneon.c $(SRC_PATH)/cpuidc.c -I $(INCLUDE_PATH) -DRESULT_PATH=\"$(RESULTS_PATH)/linpack-neon.txt\" $(CFLAGS) -mfpu=neon -funsafe-math-optimizations
-
 run:
 	bin/whetmp N
 	bin/dhrymp N
 	bin/linpack N
-ifeq ($(ARCH), arm-linux-gnueabihf)
-	bin/linpack-neon N
-endif
 
 dirs:
 	mkdir -p $(BIN_PATH)
