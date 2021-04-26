@@ -1,0 +1,12 @@
+Board,Repo ver,Conditions,Whetstone MWIPS,Dhrystone 2 MIPS,LINPACK MFLOPS
+Jetson Nano,0631a1a,Singlethreaded,1476.5,29991,1376.71
+Jetson Nano,0631a1a,Multithreaded,5847.4,20622,
+Jetson TX1,,,,,
+Jetson TX2,,,,,
+Jetson Xavier NX,,,,,
+Raspberry Pi 3,,,,,
+Raspberry Pi 3B+,0631a1a,Singlethreaded,1271.7,2921,190.75
+Raspberry Pi 3B+,0631a1a,Multithreaded,5080.6,6621,
+Raspberry Pi 3B+,0631a1a,"Singlethreaded, NEON",1290.3,2932,497.44
+Raspberry Pi 3B+,0631a1a,"Multithreaded, NEON",5194.1,6673,
+Raspberry Pi 4B,,,,,
