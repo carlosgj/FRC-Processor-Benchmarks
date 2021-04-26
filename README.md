@@ -9,4 +9,4 @@ If this is a Pi, a NEON-enabled version of LINPACK will also be built.
 
 Please note that these scripts don't do anything to optimize the board itself. So if anything needs to be done to maximize the performance of the board (`jetson_clocks` etc.), please do so manually before running the benchmarks. 
 
-Run `make run` to run all of the benchmarks. The results will be in text files places in the `results` subdirectory.
+Run `make run` to run all of the benchmarks. The results will be in text files placed in the `results` subdirectory.
