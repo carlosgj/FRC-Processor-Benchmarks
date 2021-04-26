@@ -42,7 +42,9 @@ run:
 	bin/whetmp N
 	bin/dhrymp N
 	bin/linpack N
+ifeq ($(ARCH), arm-linux-gnueabihf)
 	bin/linpack-neon N
+endif
 
 dirs:
 	mkdir -p $(BIN_PATH)
