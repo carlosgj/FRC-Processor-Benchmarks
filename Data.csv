@@ -3,7 +3,16 @@ Jetson Nano,0631a1a,Singlethreaded,1476.5,29991,1376.71
 Jetson Nano,0631a1a,Multithreaded,5847.4,20622,
 Jetson TX1,,,,,
 Jetson TX2,,,,,
-Jetson Xavier NX,,,,,
+Jetson Xavier NX,0631a1a,Singlethreaded (2 Core Profile),2986.1,60746.50,2787.19
+Jetson Xavier NX,0631a1a,Multithreaded (2 Core Profile),5991.8,22111.87,
+Jetson Xavier NX,0631a1a,Singlethreaded (4 Core Profile),2339.5,40629.26,2049.59
+Jetson Xavier NX,0631a1a,Multithreaded (4 Core Profile),9392.2,ERROR,
+Jetson Xavier NX,0631a1a,Singlethreaded (6 Core Profile),2265.9,40347.20,2098.54
+Jetson Xavier NX,0631a1a,Multithreaded (6 Core Profile),13673.0,ERROR,
+Jetson Xavier AGX,0631a1a,Singlethreaded (30W/2 Core Profile),3418.6,66615.73,3135.91
+Jetson Xavier AGX,0631a1a,Multithreaded (30W/2 Core Profile),7021.2,23968.46,
+Jetson Xavier AGX,0631a1a,Singlethreaded (MaxN Profile),3725.2,78819.18,3548.09
+Jetson Xavier AGX,0631a1a,Multithreaded (MaxN Profile),30076.6,ERROR,
 Raspberry Pi 3,,,,,
 Raspberry Pi 3B+,0631a1a,Singlethreaded,1271.7,2921,190.75
 Raspberry Pi 3B+,0631a1a,Multithreaded,5080.6,6621,
